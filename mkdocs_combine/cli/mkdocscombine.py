@@ -24,9 +24,17 @@ import sys
 
 import mkdocs_combine
 from mkdocs_combine.exceptions import FatalError
-from pkg_resources import get_distribution
 
-__version__ = get_distribution("mkdocs-combine").version
+# Use importlib.metadata for version retrieval (Python 3.8+), fallback to importlib_metadata for older versions
+try:
+    from importlib.metadata import version, PackageNotFoundError
+except ImportError:
+    from importlib_metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("mkdocs-combine")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 
 def stdout_file(encoding):

@@ -19,7 +19,13 @@ import sys
 
 import markdown
 import mkdocs.config
-import mkdocs.utils
+def filename_to_title(filename):
+    title = os.path.splitext(filename)[0]
+    title = title.replace('-', ' ').replace('_', ' ')
+    # Capitalize if the filename was all lowercase, otherwise leave it as-is.
+    if title.lower() == title:
+        title = title.capitalize()
+    return title
 import mkdocs_combine.filters.admonitions
 import mkdocs_combine.filters.anchors
 import mkdocs_combine.filters.chapterhead
@@ -108,10 +114,7 @@ class MkDocsCombiner:
         """Recursively flattens pages data structure into a one-dimensional data structure"""
         flattened = []
 
-        if sys.version_info.major < 3:
-            str_type = (str, self.encoding, unicode)
-        else:
-            str_type = (str, self.encoding)
+        str_type = (str, self.encoding)
 
         for page in pages:
             if type(page) in str_type:
@@ -119,7 +122,7 @@ class MkDocsCombiner:
                     {
                         "file": page,
                         "title": "%s {: .page-title}"
-                        % mkdocs.utils.filename_to_title(page),
+                        % filename_to_title(page),
                         "level": level,
                     }
                 )
@@ -187,15 +190,26 @@ class MkDocsCombiner:
         for page in pages:
             lines_tmp = []
             if page["file"]:
-                fname = os.path.join(self.config["docs_dir"], page["file"])
+                # Security: Prevent path traversal and suspicious characters
+                filename = page["file"]
+                if any(x in filename for x in ["..", "~", "//", "\\", ":", "|", "\0"]):
+                    print(f"Warning: Suspicious filename, skipping: {filename}")
+                    continue
+                fname = os.path.join(self.config["docs_dir"], filename)
+                # Only process if file exists and is a Markdown file
+                if not os.path.isfile(fname):
+                    print(f"Warning: File does not exist, skipping: {fname}")
+                    continue
+                if not fname.lower().endswith('.md'):
+                    print(f"Warning: Not a Markdown file, skipping: {fname}")
+                    continue
                 try:
                     with codecs.open(fname, "r", self.encoding) as p:
                         for line in p.readlines():
                             lines_tmp.append(line.rstrip())
                 except OSError as e:
-                    raise FatalError(
-                        f"Couldn't open {fname} for reading: {e.strerror}", 1
-                    )
+                    print(f"Warning: Couldn't open {fname} for reading: {e.strerror}. Skipping.")
+                    continue
 
             f_chapterhead = mkdocs_combine.filters.chapterhead.ChapterheadFilter(
                 headlevel=page["level"], title=page["title"]
